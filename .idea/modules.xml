@@ -2,7 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/FullscreenWebView.iml" filepath="$PROJECT_DIR$/FullscreenWebView.iml" />
       <module fileurl="file://$PROJECT_DIR$/FullscreenWebView/FullscreenWebView.iml" filepath="$PROJECT_DIR$/FullscreenWebView/FullscreenWebView.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FullscreenWebView/FullscreenWebView-FullscreenWebView.iml" filepath="$PROJECT_DIR$/FullscreenWebView/FullscreenWebView-FullscreenWebView.iml" />
       <module fileurl="file://$PROJECT_DIR$/fullscreen.iml" filepath="$PROJECT_DIR$/fullscreen.iml" />
     </modules>
   </component>

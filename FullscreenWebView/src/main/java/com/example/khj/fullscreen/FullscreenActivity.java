@@ -22,6 +22,7 @@ import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebView;
@@ -124,6 +125,7 @@ public class FullscreenActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_fullscreen);
 
+
         view = (WebView) this.findViewById(R.id.webView);
 
         dbfriend = new KeyDatabase(this.getBaseContext());
@@ -141,6 +143,7 @@ public class FullscreenActivity extends AppCompatActivity {
         });
         view.loadUrl("http://www.afreecatv.com");
 
+
         mVisible = true;
         mControlsView = findViewById(R.id.fullscreen_content_controls);
         mContentView = findViewById(R.id.fullscreen_content);
@@ -157,18 +160,17 @@ public class FullscreenActivity extends AppCompatActivity {
         // Upon interacting with UI controls, delay any scheduled hide()
         // operations to prevent the jarring behavior of controls going away
         // while interacting with the UI.
-        findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
+//        findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
     }
 
-
-    private static Bitmap pictureDrawable2Bitmap(PictureDrawable pictureDrawable) {
-        Bitmap bitmap = Bitmap.createBitmap(pictureDrawable.getIntrinsicWidth()
-                , pictureDrawable.getIntrinsicHeight()
-                , Bitmap.Config.ARGB_8888);
-        Canvas canvas = new Canvas(bitmap);
-        canvas.drawPicture(pictureDrawable.getPicture());
-        return bitmap;
-    }
+//    private static Bitmap pictureDrawable2Bitmap(PictureDrawable pictureDrawable) {
+//        Bitmap bitmap = Bitmap.createBitmap(pictureDrawable.getIntrinsicWidth()
+//                , pictureDrawable.getIntrinsicHeight()
+//                , Bitmap.Config.ARGB_8888);
+//        Canvas canvas = new Canvas(bitmap);
+//        canvas.drawPicture(pictureDrawable.getPicture());
+//        return bitmap;
+//    }
 
     @Override
     protected void onPostCreate(Bundle savedInstanceState) {
@@ -234,32 +236,39 @@ public class FullscreenActivity extends AppCompatActivity {
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
             view.layout(0, 0, view.getMeasuredWidth(),
                     view.getMeasuredHeight());
+
             view.setDrawingCacheEnabled(true);
             view.buildDrawingCache();
             Bitmap bitmap = Bitmap.createBitmap(view.getMeasuredWidth(),
                     view.getMeasuredHeight(), Bitmap.Config.ARGB_8888);
 
-            Canvas canvas = new Canvas(bitmap);
-            Paint paint = new Paint();
-            int height = bitmap.getHeight();
-            canvas.drawBitmap(bitmap, 0, height, paint);
-            view.draw(canvas);
+
+//            Canvas canvas = new Canvas(bitmap);
+//            Paint paint = new Paint();
+//            int height = bitmap.getHeight();
+//            canvas.drawBitmap(bitmap, 0, height, paint);
+//            view.draw(canvas);
 
             Cursor cursor = cr.query(Uri.parse(URL), null, null, null, null);// select
 
             String where = new String("x =? AND y=?");
 
             try {
+                cursor.moveToFirst();
                 while (cursor.moveToNext()) {
                     int x = cursor.getInt(cursor.getColumnIndex("x"));
                     int y = cursor.getInt(cursor.getColumnIndex("y"));
 
                     ContentValues values1 = new ContentValues();
-                    values1.put("color", bitmap.getPixel(x, y));
-
-                    db.update("keys", values1, "x=" + x + " AND " + "y=" + y, null);
+                    Log.d("fwang", "x:"+x+" y:"+y + " height " + bitmap.getHeight());
+                    if(y < bitmap.getHeight() && x < bitmap.getWidth()) {
+                        values1.put("color", bitmap.getPixel(x, y));
+                        cr.update(Uri.parse(URL), values1, "x="+x+" AND y="+y, null);
+                    }
+//                    db.update("keys", values1, "x=" + x + " AND " + "y=" + y, null);
                 }
             } finally {
+                bitmap.recycle();
                 cursor.close();
             }
             handler.postDelayed(updateKeyColors, interval);
@@ -273,12 +282,13 @@ public class FullscreenActivity extends AppCompatActivity {
     class KeyDatabase extends SQLiteOpenHelper {//SQLiteOpenHelper -> DB생성을 돕겠다
 
         public KeyDatabase(Context context) {
-            super(context, "key.db", null, 1);
+            super(context, "swc_key.db", null, 1);
             // TODO Auto-generated constructor stub
         }
 
         @Override
         public void onCreate(SQLiteDatabase db) { //SQLiteOpenHelper 가 DB를 만들고 db의 포인트를 넘겨준다
+
         }
 
         @Override
