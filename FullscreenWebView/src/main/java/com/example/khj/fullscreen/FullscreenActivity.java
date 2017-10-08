@@ -3,14 +3,21 @@ package com.example.khj.fullscreen;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.PictureDrawable;
+import android.net.Uri;
 import android.os.Build;
-import android.os.Environment;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -21,9 +28,6 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,6 +38,8 @@ import java.util.Map;
  * status bar and navigation/system bar) with user interaction.
  */
 public class FullscreenActivity extends AppCompatActivity {
+
+    String URL = "content://com.example.android.softkeyboard/keys";
     /**
      * Whether or not the system UI should be auto-hidden after
      * {@link #AUTO_HIDE_DELAY_MILLIS} milliseconds.
@@ -104,24 +110,36 @@ public class FullscreenActivity extends AppCompatActivity {
         }
     };
 
+    private int interval = 1000; // Repeat this task every 5 seconds.
+    private Handler handler;
+
     WebView view;
+    KeyDatabase dbfriend;
+    SQLiteDatabase db;
+    ContentResolver cr;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_fullscreen);
-        requestRuntimePermissions();
-        handler = new Handler();
 
         view = (WebView) this.findViewById(R.id.webView);
-        view.enableSlowWholeDocumentDraw();
-        view.loadUrl("http://www.afreecatv.com");
+
+        dbfriend = new KeyDatabase(this.getBaseContext());
+        db = dbfriend.getWritableDatabase();
+        cr = getContentResolver();
+        handler = new Handler();
+
         view.getSettings().setJavaScriptEnabled(true);
+        view.enableSlowWholeDocumentDraw();
         view.setWebViewClient(new WebViewClient() {
-            public void onPageFinished(WebView view, String url) {
-                startCapturWebView();
+            @Override
+            public void onPageFinished(final WebView view, String url) {
+                updateKeyColor();
             }
         });
+        view.loadUrl("http://www.afreecatv.com");
 
         mVisible = true;
         mControlsView = findViewById(R.id.fullscreen_content_controls);
@@ -206,149 +224,68 @@ public class FullscreenActivity extends AppCompatActivity {
     }
 
     /* Start capturing web view repeatedly */
-    private int interval = 5000; // Repeat this task every 5 seconds.
-    private Handler handler;
 
-    Runnable captureWebView = new Runnable() {
+
+    Runnable updateKeyColors = new Runnable() {
         @Override
         public void run() {
             view.measure(View.MeasureSpec.makeMeasureSpec(
                     View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED),
                     View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-
-            view.layout(0, 0, view.getMeasuredWidth(), view.getMeasuredHeight());
-
+            view.layout(0, 0, view.getMeasuredWidth(),
+                    view.getMeasuredHeight());
             view.setDrawingCacheEnabled(true);
             view.buildDrawingCache();
-            Bitmap bm = Bitmap.createBitmap(view.getMeasuredWidth(),
-                    2500, Bitmap.Config.ARGB_8888);
+            Bitmap bitmap = Bitmap.createBitmap(view.getMeasuredWidth(),
+                    view.getMeasuredHeight(), Bitmap.Config.ARGB_8888);
 
-
-            Canvas bigcanvas = new Canvas(bm);
+            Canvas canvas = new Canvas(bitmap);
             Paint paint = new Paint();
-            int iHeight = bm.getHeight();
-            bigcanvas.drawBitmap(bm, 0, iHeight, paint);
-            view.draw(bigcanvas);
+            int height = bitmap.getHeight();
+            canvas.drawBitmap(bitmap, 0, height, paint);
+            view.draw(canvas);
 
-            if (bm != null) {
-                try {
-                    String path = Environment.getExternalStorageDirectory()
-                            .toString();
-                    OutputStream fOut = null;
-                    File file = new File(path, "/capture.png");
-                    System.out.println(path);
-                    fOut = new FileOutputStream(file);
+            Cursor cursor = cr.query(Uri.parse(URL), null, null, null, null);// select
 
-                    bm.compress(Bitmap.CompressFormat.PNG, 50, fOut);
-                    fOut.flush();
-                    fOut.close();
-                    bm.recycle();
-                } catch (Exception e) {
-                    e.printStackTrace();
+            String where = new String("x =? AND y=?");
+
+            try {
+                while (cursor.moveToNext()) {
+                    int x = cursor.getInt(cursor.getColumnIndex("x"));
+                    int y = cursor.getInt(cursor.getColumnIndex("y"));
+
+                    ContentValues values1 = new ContentValues();
+                    values1.put("color", bitmap.getPixel(x, y));
+
+                    db.update("keys", values1, "x=" + x + " AND " + "y=" + y, null);
                 }
+            } finally {
+                cursor.close();
             }
-            handler.postDelayed(captureWebView, interval);
+            handler.postDelayed(updateKeyColors, interval);
         }
     };
 
-    void startCapturWebView() {
-        captureWebView.run();
+    void updateKeyColor() {
+        updateKeyColors.run();
     }
 
-    /* Add runtime permissions*/
-    final private int REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS = 124;
+    class KeyDatabase extends SQLiteOpenHelper {//SQLiteOpenHelper -> DB생성을 돕겠다
 
-    private void requestRuntimePermissions() {
-        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            List<String> permissionsNeeded = new ArrayList<String>();
-
-            final List<String> permissionsList = new ArrayList<String>();
-            if (!addPermission(permissionsList, Manifest.permission.INTERNET))
-                permissionsNeeded.add("Internet.");
-            if (!addPermission(permissionsList, Manifest.permission.ACCESS_NETWORK_STATE))
-                permissionsNeeded.add("Internet Status.");
-            if (!addPermission(permissionsList, Manifest.permission.READ_EXTERNAL_STORAGE))
-                permissionsNeeded.add("Read Files.");
-            if (!addPermission(permissionsList, Manifest.permission.WRITE_EXTERNAL_STORAGE))
-                permissionsNeeded.add("Write Files.");
-
-            if (permissionsList.size() > 0) {
-                if (permissionsNeeded.size() > 0) {
-                    // Need Rationale
-                    String message = "You need to grant access to " + permissionsNeeded.get(0);
-                    for (int i = 1; i < permissionsNeeded.size(); i++)
-                        message = message + ", " + permissionsNeeded.get(i);
-                    showMessageOKCancel(message,
-                            new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                        requestPermissions(permissionsList.toArray(new String[permissionsList.size()]),
-                                                REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS);
-                                    }
-                                }
-                            });
-                    return;
-                }
-                requestPermissions(permissionsList.toArray(new String[permissionsList.size()]),
-                        REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS);
-                return;
-            }
+        public KeyDatabase(Context context) {
+            super(context, "key.db", null, 1);
+            // TODO Auto-generated constructor stub
         }
-        // startApp();
 
-    }
-
-    private boolean addPermission(List<String> permissionsList, String permission) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
-                permissionsList.add(permission);
-                // Check for Rationale Option
-                if (!shouldShowRequestPermissionRationale(permission))
-                    return false;
-            }
+        @Override
+        public void onCreate(SQLiteDatabase db) { //SQLiteOpenHelper 가 DB를 만들고 db의 포인트를 넘겨준다
         }
-        return true;
-    }
 
-    private void showMessageOKCancel(String message, DialogInterface.OnClickListener okListener) {
-        new AlertDialog.Builder(FullscreenActivity.this)
-                .setMessage(message)
-                .setPositiveButton("OK", okListener)
-                .setNegativeButton("Cancel", null)
-                .create()
-                .show();
-    }
+        @Override
+        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+            // TODO Auto-generated method stub
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_CODE_ASK_MULTIPLE_PERMISSIONS: {
-                Map<String, Integer> perms = new HashMap<String, Integer>();
-                // Initial
-                perms.put(Manifest.permission.INTERNET, PackageManager.PERMISSION_GRANTED);
-                perms.put(Manifest.permission.ACCESS_NETWORK_STATE, PackageManager.PERMISSION_GRANTED);
-                perms.put(Manifest.permission.READ_EXTERNAL_STORAGE, PackageManager.PERMISSION_GRANTED);
-                perms.put(Manifest.permission.WRITE_EXTERNAL_STORAGE, PackageManager.PERMISSION_GRANTED);
-                // Fill with results
-                for (int i = 0; i < permissions.length; i++)
-                    perms.put(permissions[i], grantResults[i]);
-                // Check for ACCESS_FINE_LOCATION
-                if (perms.get(Manifest.permission.INTERNET) == PackageManager.PERMISSION_GRANTED
-                        && perms.get(Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED
-                        && perms.get(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                        && perms.get(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                    // All Permissions Granted
-                    //startApp();
-                } else {
-                    // Permission Denied
-                    Toast.makeText(FullscreenActivity.this, "Some Permission is Denied, please allow permission for that the app can work.", Toast.LENGTH_SHORT)
-                            .show();
-                }
-            }
-            break;
-            default:
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
 }
+
