@@ -13,6 +13,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -26,6 +27,7 @@ import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -52,7 +54,7 @@ public class FullscreenActivity extends Activity {
      * If {@link #AUTO_HIDE} is set, the number of milliseconds to wait after
      * user interaction before hiding the system UI.
      */
-    private static final int AUTO_HIDE_DELAY_MILLIS = 3000;
+    private static final int AUTO_HIDE_DELAY_MILLIS = 1000;
 
     /**
      * Some older devices needs a small delay between UI widget updates
@@ -68,10 +70,12 @@ public class FullscreenActivity extends Activity {
     private int interval = 1000; // Repeat this task every 5 seconds.
     private Handler handler;
 
+
     WebView view;
     KeyDatabase dbfriend;
     SQLiteDatabase db;
     ContentResolver cr;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,6 +86,7 @@ public class FullscreenActivity extends Activity {
 
         view = (WebView) this.findViewById(R.id.webView);
 
+
         dbfriend = new KeyDatabase(this.getBaseContext());
         db = dbfriend.getWritableDatabase();
         cr = getContentResolver();
@@ -89,14 +94,17 @@ public class FullscreenActivity extends Activity {
 
 
         view.getSettings().setJavaScriptEnabled(true);
-        view.enableSlowWholeDocumentDraw();
-        view.setWebViewClient(new WebViewClient() {
+        view.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
 
+        //view.enableSlowWholeDocumentDraw();
+        view.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(final WebView view, String url) {
+                Log.d("wan_", "called");
                 updateKeyColor();
             }
         });
+
         view.loadUrl("http://www.afreecatv.com");
 
 
@@ -118,13 +126,19 @@ public class FullscreenActivity extends Activity {
                     view.getMeasuredHeight());
 */
             view.setDrawingCacheEnabled(true);
-            view.buildDrawingCache();
+            //view.buildDrawingCache();
 /*            Bitmap bitmap = Bitmap.createBitmap(view.getMeasuredWidth(),
                     view.getMeasuredHeight(), Bitmap.Config.ARGB_8888);*/
-            Bitmap bitmap = Bitmap.createBitmap(width,
-                    heigth, Bitmap.Config.ARGB_8888);
-            Cursor cursor = cr.query(Uri.parse(URL), null, null, null, null);// select
+            //bitmap = Bitmap.createBitmap(width,
+            //        heigth, Bitmap.Config.RGB_565);
+            Bitmap bitmap = Bitmap.createBitmap(view.getDrawingCache());
+            view.setDrawingCacheEnabled(false);
+            //bitmap.setHeight(heigth);
+            //bitmap.setWidth(width);
+            bitmap.setConfig(Bitmap.Config.RGB_565);
 
+            //Bitmap mBitmap = BitmapFactory.decodeResource(getResources(), view.);
+            Cursor cursor = cr.query(Uri.parse(URL), null, null, null, null);// select
             String where = new String("x =? AND y=?");
 
             try {
@@ -134,10 +148,10 @@ public class FullscreenActivity extends Activity {
                     int y = cursor.getInt(cursor.getColumnIndex("y"));
 
                     ContentValues values1 = new ContentValues();
-                    Log.d("fwang", "x:"+x+" y:"+y + " height " + bitmap.getHeight());
                     if(y < bitmap.getHeight() && x < bitmap.getWidth()) {
                         values1.put("color", bitmap.getPixel(x, y));
-                        cr.update(Uri.parse(URL), values1, "x="+x+" AND y="+y, null);
+                        Log.d("fwang", "x:"+x+" y:"+y + " h : " + bitmap.getHeight() );
+                        cr.update(Uri.parse(URL), values1, "x="+x+" AND y="+y , null);
                     }
 //                    db.update("keys", values1, "x=" + x + " AND " + "y=" + y, null);
 
@@ -149,6 +163,13 @@ public class FullscreenActivity extends Activity {
             handler.postDelayed(updateKeyColors, interval);
         }
     };
+    /*
+    @Override
+    protected void onDestroy(){
+        bitmap.recycle();
+        bitmap = null;
+        super.onDestroy();
+    }*/
 
     void updateKeyColor() {
         updateKeyColors.run();
