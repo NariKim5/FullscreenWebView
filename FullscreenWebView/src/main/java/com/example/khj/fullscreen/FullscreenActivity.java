@@ -17,6 +17,8 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Point;
+import android.graphics.Rect;
 import android.graphics.drawable.PictureDrawable;
 import android.net.Uri;
 import android.os.Build;
@@ -25,11 +27,13 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import android.view.Display;
 import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -42,6 +46,8 @@ import java.util.Map;
  * status bar and navigation/system bar) with user interaction.
  */
 public class FullscreenActivity extends Activity {
+
+    private static final float SCALE = 1.0f/8.0f;
 
     String URL = "content://com.example.android.softkeyboard/keys";
     /**
@@ -72,10 +78,16 @@ public class FullscreenActivity extends Activity {
 
 
     WebView view;
-    KeyDatabase dbfriend;
-    SQLiteDatabase db;
     ContentResolver cr;
+    Canvas canvas;
+    Bitmap bitmap;
+    int width;
+    int height;
 
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        return super.onTouchEvent(event);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,12 +95,8 @@ public class FullscreenActivity extends Activity {
 
         setContentView(R.layout.activity_fullscreen);
 
-
         view = (WebView) this.findViewById(R.id.webView);
 
-
-        dbfriend = new KeyDatabase(this.getBaseContext());
-        db = dbfriend.getWritableDatabase();
         cr = getContentResolver();
         handler = new Handler();
 
@@ -96,48 +104,33 @@ public class FullscreenActivity extends Activity {
         view.getSettings().setJavaScriptEnabled(true);
         view.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
 
-        //view.enableSlowWholeDocumentDraw();
         view.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(final WebView view, String url) {
-                Log.d("wan_", "called");
                 updateKeyColor();
             }
         });
 
-        view.loadUrl("http://www.afreecatv.com");
-
-
+        view.loadUrl("http://www.naver.com");
         mVisible = true;
-        //mControlsView = findViewById(R.id.fullscreen_content_controls);
-        //mContentView = findViewById(R.id.fullscreen_content);
     }
 
     /* Start capturing web view repeatedly */
     Runnable updateKeyColors = new Runnable() {
         @Override
         public void run() {
-            int width, heigth;
-            width = view.getWidth(); heigth = view.getHeight();
-/*            view.measure(View.MeasureSpec.makeMeasureSpec(
-                    View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-            view.layout(0, 0, view.getMeasuredWidth(),
-                    view.getMeasuredHeight());
-*/
-            view.setDrawingCacheEnabled(true);
-            //view.buildDrawingCache();
-/*            Bitmap bitmap = Bitmap.createBitmap(view.getMeasuredWidth(),
-                    view.getMeasuredHeight(), Bitmap.Config.ARGB_8888);*/
-            //bitmap = Bitmap.createBitmap(width,
-            //        heigth, Bitmap.Config.RGB_565);
-            Bitmap bitmap = Bitmap.createBitmap(view.getDrawingCache());
-            view.setDrawingCacheEnabled(false);
-            //bitmap.setHeight(heigth);
-            //bitmap.setWidth(width);
-            bitmap.setConfig(Bitmap.Config.RGB_565);
+            view.layout(0, 0, view.getWidth(), view.getHeight());
 
-            //Bitmap mBitmap = BitmapFactory.decodeResource(getResources(), view.);
+            Rect lo = new Rect();
+            view.getLocalVisibleRect(lo);
+
+            canvas.save();
+            canvas.scale(SCALE, SCALE);
+            canvas.translate(-lo.left, -lo.top);
+
+            view.draw(canvas);
+            canvas.restore();
+
             Cursor cursor = cr.query(Uri.parse(URL), null, null, null, null);// select
             String where = new String("x =? AND y=?");
 
@@ -146,52 +139,34 @@ public class FullscreenActivity extends Activity {
                 while (cursor.moveToNext()) {
                     int x = cursor.getInt(cursor.getColumnIndex("x"));
                     int y = cursor.getInt(cursor.getColumnIndex("y"));
+                    int[] location = new int[2];
+                    view.getLocationOnScreen(location);
 
                     ContentValues values1 = new ContentValues();
-                    if(y < bitmap.getHeight() && x < bitmap.getWidth()) {
-                        values1.put("color", bitmap.getPixel(x, y));
-                        Log.d("fwang", "x:"+x+" y:"+y + " h : " + bitmap.getHeight() );
-                        cr.update(Uri.parse(URL), values1, "x="+x+" AND y="+y , null);
-                    }
-//                    db.update("keys", values1, "x=" + x + " AND " + "y=" + y, null);
 
+                    if(y * SCALE < bitmap.getHeight() && x * SCALE < bitmap.getWidth()) {
+                        values1.put("color", bitmap.getPixel(x/8, y/8));
+                        cr.update(Uri.parse(URL), values1, "x="+x+" AND y="+y, null);
+                    }
                 }
             } finally {
-                bitmap.recycle();
                 cursor.close();
             }
             handler.postDelayed(updateKeyColors, interval);
         }
     };
-    /*
-    @Override
-    protected void onDestroy(){
-        bitmap.recycle();
-        bitmap = null;
-        super.onDestroy();
-    }*/
 
     void updateKeyColor() {
+        Display display = getWindowManager().getDefaultDisplay();
+        Point size = new Point();
+        display.getSize(size);
+        width = (int)(size.x * SCALE);
+        height = (int)(size.y * SCALE);
+
+        bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+        canvas = new Canvas(bitmap);
+
         updateKeyColors.run();
-    }
-
-    class KeyDatabase extends SQLiteOpenHelper {//SQLiteOpenHelper -> DB생성을 돕겠다
-
-        public KeyDatabase(Context context) {
-            super(context, "swc_key.db", null, 1);
-            // TODO Auto-generated constructor stub
-        }
-
-        @Override
-        public void onCreate(SQLiteDatabase db) { //SQLiteOpenHelper 가 DB를 만들고 db의 포인트를 넘겨준다
-
-        }
-
-        @Override
-        public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-            // TODO Auto-generated method stub
-
-        }
     }
 }
 
