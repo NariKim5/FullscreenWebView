@@ -33,6 +33,7 @@ import android.view.View;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.Toast;
 
@@ -76,6 +77,7 @@ public class FullscreenActivity extends Activity {
     private int interval = 1000; // Repeat this task every 5 seconds.
     private Handler handler;
 
+    private int clickCount = 0;
 
     WebView view;
     ContentResolver cr;
@@ -96,6 +98,8 @@ public class FullscreenActivity extends Activity {
         setContentView(R.layout.activity_fullscreen);
 
         view = (WebView) this.findViewById(R.id.webView);
+        findViewById(R.id.hidden_btn).setOnClickListener(btnListener);
+
 
         cr = getContentResolver();
         handler = new Handler();
@@ -105,17 +109,30 @@ public class FullscreenActivity extends Activity {
         view.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
 
         view.setWebViewClient(new WebViewClient() {
+            /*
             @Override
             public void onPageFinished(final WebView view, String url) {
                 updateKeyColor();
-            }
+            }*/
         });
 
-        view.loadUrl("http://www.naver.com");
+        view.loadUrl("http://www.afreecatv.com");
         mVisible = true;
     }
+    Button.OnClickListener btnListener = new View.OnClickListener() {
+        public void onClick(View v) {
+            clickCount++;
+            Log.d("wan", "count : " + clickCount);
+            if(clickCount == 3){
+                updateKeyColor();
+            }
+            else if(clickCount == 6){
+                clickCount = 0 ;
+                handler.removeCallbacks(updateKeyColors);
+            }
+        }
+    };
 
-    /* Start capturing web view repeatedly */
     Runnable updateKeyColors = new Runnable() {
         @Override
         public void run() {
